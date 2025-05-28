@@ -1,27 +1,53 @@
 package handlers
 
 import (
-    "net/http"
-    
-    "github.com/labstack/echo/v4"
+	"net/http"
+	"sync"
+
+	"github.com/ImanaryPab/url-shortener/internal/core"
+	"github.com/labstack/echo/v4"
 )
 
-type ShortenerHandler struct {
-}
+var (
+	shortener *core.URLShortener
+	once      sync.Once
+)
+
+type ShortenerHandler struct{}
 
 func NewShortenerHandler() *ShortenerHandler {
-    return &ShortenerHandler{}
+	once.Do(func() {
+		shortener = core.NewURLShortener()
+	})
+	return &ShortenerHandler{}
 }
 
 func (h *ShortenerHandler) ShortenURL(c echo.Context) error {
-    url := c.FormValue("url")
-    return c.JSON(http.StatusOK, map[string]string{
-        "short_url": "http://localhost:8080/abc123",
-        "original":  url,
-    })
+	originalURL := c.FormValue("url")
+	if originalURL == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "URL is required",
+		})
+	}
+
+	shortCode := shortener.ShortenURL(originalURL)
+	shortURL := "http://" + c.Request().Host + "/" + shortCode
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"original_url": originalURL,
+		"short_url":    shortURL,
+	})
 }
 
 func (h *ShortenerHandler) Redirect(c echo.Context) error {
-    code := c.Param("code")
-    return c.Redirect(http.StatusMovedPermanently, "https://google.com")
+	shortCode := c.Param("code")
+	originalURL, exists := shortener.GetOriginalURL(shortCode)
+
+	if !exists {
+		return c.JSON(http.StatusNotFound, map[string]string{
+			"error": "Short URL not found",
+		})
+	}
+
+	return c.Redirect(http.StatusMovedPermanently, originalURL)
 }

@@ -3,8 +3,10 @@ package main
 import (
 	"log"
 
+	"github.com/ImanaryPab/url-shortener/internal/handlers"
 	"github.com/ImanaryPab/url-shortener/pkg/config"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
@@ -15,16 +17,19 @@ func main() {
 
 	e := echo.New()
 
-	e.GET("/:code", redirectHandler)
-	e.POST("/shorten", shortenHandler)
+	// Middleware
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
 
-	e.Logger.Fatal(e.Start(":8080"))
-}
+	// Инициализация обработчика
+	handler := handlers.NewShortenerHandler()
 
-func redirectHandler(c echo.Context) error {
-	return c.String(200, "Redirect logic here")
-}
+	// Маршруты
+	e.POST("/shorten", handler.ShortenURL)
+	e.GET("/:code", handler.Redirect)
 
-func shortenHandler(c echo.Context) error {
-	return c.String(200, "Shorten logic here")
+	// Запуск сервера
+	port := cfg.ServerPort
+	log.Printf("Starting server on :%d", port)
+	e.Logger.Fatal(e.Start(":" + port))
 }
