@@ -1,7 +1,14 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
 
 	"github.com/ImanaryPab/url-shortener/internal/handlers"
 	"github.com/ImanaryPab/url-shortener/pkg/config"
@@ -17,19 +24,33 @@ func main() {
 
 	e := echo.New()
 
-	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
-	// Инициализация обработчика
-	handler := handlers.NewShortenerHandler()
+	handler, err := handlers.NewShortenerHandler(cfg)
+	if err != nil {
+		log.Fatal("Failed to create handler:", err)
+	}
 
-	// Маршруты
 	e.POST("/shorten", handler.ShortenURL)
 	e.GET("/:code", handler.Redirect)
+	e.GET("/stats/:code", handler.GetStats)
 
-	// Запуск сервера
-	port := cfg.ServerPort
-	log.Printf("Starting server on :%d", port)
-	e.Logger.Fatal(e.Start(":" + port))
+	go func() {
+		port := cfg.ServerPort
+		if err := e.Start(":" + strconv.Itoa(port)); err != nil && err != http.ErrServerClosed {
+			e.Logger.Fatal("shutting down the server")
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := e.Shutdown(ctx); err != nil {
+		e.Logger.Fatal(err)
+	}
 }

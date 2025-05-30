@@ -60,6 +60,10 @@ func (s *URLShortener) IncrementAccessCount(ctx context.Context, shortCode strin
 	return s.storage.IncrementAccessCount(ctx, shortCode)
 }
 
+func (s *URLShortener) GetStats(ctx context.Context, shortCode string) (*storage.URLStats, error) {
+	return s.storage.GetStats(ctx, shortCode)
+}
+
 func generateShortCode(length int) string {
 	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	code := make([]byte, length)
